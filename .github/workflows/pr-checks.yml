@@ -1,0 +1,60 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+
+jobs:
+  pr-quality:
+    name: PR Quality Gates
+    runs-on: ubuntu-latest
+    # Skip draft PRs
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check PR has description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            if (body.trim().length < 10) {
+              core.setFailed("PR must include a meaningful description (10+ chars).");
+            }
+
+      - name: Check PR title format
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+            // Reject generic titles
+            const badTitles = ['update', 'fix', 'changes', 'wip', 'test'];
+            if (badTitles.includes(title.toLowerCase().trim())) {
+              core.setFailed(`PR title "${title}" is too generic. Please be descriptive.`);
+            }
+
+      - name: Check for CLAUDE.md
+        run: |
+          if [ ! -s CLAUDE.md ]; then
+            echo "::warning::CLAUDE.md is missing or empty - AI agents need guidance"
+          fi
+
+      - name: Check for breaking change label on migrations
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            const hasMigration = files.data.some(f =>
+              f.filename.startsWith('db/migrations/') && f.status === 'added'
+            );
+
+            if (hasMigration) {
+              core.notice("This PR adds database migrations. Ensure they are idempotent.");
+            }

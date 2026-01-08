@@ -1,0 +1,74 @@
+name: Deploy
+
+on:
+  # Auto-deploy on merge to main (trunk-based)
+  push:
+    branches: [main]
+
+  # Manual deploy with environment selection
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+# Only one deploy at a time per environment
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false  # Don't cancel running deploys
+
+jobs:
+  # Gate: Ensure tests pass before deploying
+  test:
+    name: Verify Tests Pass
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+    needs: test
+    runs-on: ubuntu-latest
+    # Use GitHub environments for secrets and protection rules
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy
+        run: |
+          echo "============================================"
+          echo "DEPLOYMENT TEMPLATE"
+          echo "============================================"
+          echo ""
+          echo "This is a placeholder for your deployment."
+          echo "Replace this with your actual deployment steps."
+          echo ""
+          echo "Common patterns:"
+          echo "  - AWS SSM: aws ssm send-command ..."
+          echo "  - SSH: ssh user@host 'cd /app && ./deploy.sh'"
+          echo "  - K8s: kubectl apply -f k8s/"
+          echo "  - Docker: docker compose up -d"
+          echo ""
+          echo "Environment: ${{ github.event.inputs.environment || 'staging' }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "============================================"
+
+      # Example AWS SSM deployment (uncomment and configure):
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: ${{ vars.AWS_REGION }}
+      #
+      # - name: Deploy via SSM
+      #   run: |
+      #     aws ssm send-command \
+      #       --instance-ids "${{ vars.EC2_INSTANCE_ID }}" \
+      #       --document-name "AWS-RunShellScript" \
+      #       --parameters 'commands=["cd ${{ vars.REMOTE_APP_DIR }} && ./deploy.sh"]'

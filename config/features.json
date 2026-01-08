@@ -1,0 +1,16 @@
+{
+  "flags": {
+    "NETWORK_OVERLAY": {
+      "enabled": true,
+      "description": "Show network graph overlay when clicking properties"
+    },
+    "NEW_SIDEBAR": {
+      "enabled": false,
+      "description": "Use redesigned sidebar component"
+    },
+    "DARK_MODE": {
+      "enabled": false,
+      "description": "Enable dark mode theme toggle"
+    }
+  }
+}

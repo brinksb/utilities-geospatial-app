@@ -1,0 +1,10 @@
+# Martin configuration v0.13
+# Connects to PostGIS and auto-discovers tables/functions
+
+postgres:
+  connection_string: ${DATABASE_URL}
+
+  # Auto-discover PostGIS tables and functions
+  auto_publish:
+    tables: true
+    functions: true

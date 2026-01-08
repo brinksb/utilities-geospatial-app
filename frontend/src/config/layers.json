@@ -1,0 +1,34 @@
+{
+  "layers": [
+    {
+      "id": "properties",
+      "name": "Properties",
+      "type": "mvt",
+      "url": "/tiles/properties_mvt/{z}/{x}/{y}",
+      "visible": true,
+      "style": {
+        "fillColor": "#3B82F6",
+        "lineColor": "#ffffff",
+        "lineWidth": 2,
+        "radius": 8,
+        "opacity": 200
+      },
+      "pickable": true,
+      "autoHighlight": true,
+      "highlightColor": "#FFC800"
+    },
+    {
+      "id": "network",
+      "name": "Network Edges",
+      "type": "geojson",
+      "visible": false,
+      "style": {
+        "fillColor": "#FF8C00",
+        "lineColor": "#FF8C00",
+        "lineWidth": 3,
+        "opacity": 255
+      },
+      "pickable": true
+    }
+  ]
+}
