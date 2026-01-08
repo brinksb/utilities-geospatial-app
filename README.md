@@ -71,6 +71,13 @@ docker compose exec frontend npm run test:e2e
 - **Property** - Assets with geometry, linked to a type
 - **Inspection** - Related inspection records
 
+## Features
+
+- **MVT Tiles** - Static vector tiles via Martin for efficient map rendering
+- **pgRouting** - Network graph analysis (nearest edge, connected edges within N hops)
+- **Feature Flags** - JSON-based flags for trunk-based development (`config/features.json`)
+- **LayerManager** - Config-driven layer visibility with localStorage persistence
+
 ## Development Workflow
 
 1. Write a failing test

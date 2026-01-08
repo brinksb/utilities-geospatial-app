@@ -62,5 +62,18 @@ docker compose down -v && ./deploy.sh
 
 - `docs/ARCHITECTURE.md` - System overview and data flow
 - `docs/AUTH_PATTERNS.md` - Authentication patterns for future reference
+- `docs/FEATURE_FLAGS.md` - JSON-based feature flag system
+- `docs/TRUNK_BASED_DEVELOPMENT.md` - CI/CD and branching practices
 - `docs/adr/` - Architecture Decision Records (6 ADRs)
 - `AGENTS.md` - Team values and working agreements
+
+## Test Coverage
+
+| Layer | Tests | Framework |
+|-------|-------|-----------|
+| Backend | 52 | pytest |
+| Frontend unit | 42 | Vitest |
+| E2E | 19 | Playwright |
+| **Total** | **113** | |
+
+Run all tests: `./test.sh`
