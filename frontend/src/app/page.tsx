@@ -1,16 +1,39 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { PropertyMap } from '@/components/PropertyMap'
 import { PropertyCard } from '@/components/PropertyCard'
+import { LayerManager, LayerConfig, LayerPreset } from '@/services/LayerManager'
+import { LegendService } from '@/services/LegendService'
+import { Legend } from '@/components/Legend'
+import { DraggablePanel } from '@/components/DraggablePanel'
+import layersConfig from '@/config/layers.json'
 import type { Property } from '@/types'
 import type { FeatureCollection } from 'geojson'
+
+// Initialize LayerManager singleton with presets
+const layerManager = new LayerManager(
+  layersConfig.layers as LayerConfig[],
+  layersConfig.presets as LayerPreset[]
+)
+
+// Initialize LegendService
+const legendService = new LegendService()
 
 export default function Home() {
   const [properties, setProperties] = useState<Property[]>([])
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
   const [loading, setLoading] = useState(true)
   const [networkOverlay, setNetworkOverlay] = useState<FeatureCollection | null>(null)
+  const [, forceUpdate] = useState(0)
+
+  // Subscribe to layer changes
+  useEffect(() => {
+    const unsubscribe = layerManager.subscribe(() => {
+      forceUpdate(n => n + 1)
+    })
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     fetch('/api/properties')
@@ -108,38 +131,122 @@ export default function Home() {
       >
         <h1 style={{ margin: '0 0 16px', fontSize: '24px' }}>Property Viewer</h1>
 
-        {selectedProperty ? (
-          <div data-testid="selected-property">
-            <button
-              data-testid="back-button"
-              onClick={handleBackClick}
+        {/* Layer Controls */}
+        <div
+          data-testid="layer-controls"
+          style={{
+            marginBottom: '16px',
+            padding: '12px',
+            backgroundColor: '#fff',
+            borderRadius: '8px',
+            border: '1px solid #e5e7eb',
+          }}
+        >
+          {/* Preset Buttons */}
+          {layerManager.getPresets().length > 0 && (
+            <div
+              data-testid="layer-presets"
               style={{
-                marginBottom: '16px',
-                padding: '8px 16px',
-                cursor: 'pointer',
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '12px',
+                paddingBottom: '12px',
+                borderBottom: '1px solid #e5e7eb',
               }}
             >
-              &larr; Back to list
-            </button>
-            <PropertyCard property={selectedProperty} />
-          </div>
-        ) : (
-          <div data-testid="property-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {loading ? (
-              <p data-testid="loading-message">Loading properties...</p>
-            ) : properties.length === 0 ? (
-              <p data-testid="empty-message">No properties found. Create some via the API!</p>
-            ) : (
-              properties.map((property) => (
-                <PropertyCard
-                  key={property.id}
-                  property={property}
-                  onClick={handleSidebarPropertyClick}
-                />
-              ))
-            )}
-          </div>
-        )}
+              {layerManager.getPresets().map((preset) => (
+                <button
+                  key={preset.id}
+                  data-testid={`preset-${preset.id}`}
+                  onClick={() => layerManager.applyPreset(preset.id)}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    borderRadius: '4px',
+                    border: '1px solid #d1d5db',
+                    backgroundColor: layerManager.getActivePreset() === preset.id ? '#3B82F6' : '#fff',
+                    color: layerManager.getActivePreset() === preset.id ? '#fff' : '#374151',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {preset.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <h2 style={{ margin: '0 0 8px', fontSize: '14px', color: '#6b7280' }}>Layers</h2>
+          {layerManager.getGroups().map((group) => (
+            <div key={group.id} style={{ marginBottom: '8px' }}>
+              <div
+                data-testid={`layer-group-${group.id}`}
+                onClick={() => layerManager.toggleGroup(group.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                  fontWeight: 500,
+                }}
+              >
+                <span style={{ marginRight: '8px', fontSize: '12px' }}>
+                  {layerManager.isGroupExpanded(group.id) ? '▼' : '▶'}
+                </span>
+                {group.name}
+              </div>
+              {layerManager.isGroupExpanded(group.id) && (
+                <div style={{ marginLeft: '20px' }}>
+                  {layerManager.getGroupChildren(group.id).map((layer) => (
+                    <label
+                      key={layer.id}
+                      data-testid={`layer-toggle-${layer.id}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '4px 0',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={layer.visible}
+                        onChange={() => layerManager.toggleVisibility(layer.id)}
+                        style={{ marginRight: '8px' }}
+                      />
+                      {layer.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Legend for visible layers */}
+          {layerManager.getVisibleLayers().map((layer) => {
+            const items = legendService.getLegendForLayer(layer)
+            return items.length > 0 ? (
+              <Legend key={layer.id} title={layer.name} items={items} />
+            ) : null
+          })}
+        </div>
+
+        {/* Property list - always visible */}
+        <div data-testid="property-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {loading ? (
+            <p data-testid="loading-message">Loading properties...</p>
+          ) : properties.length === 0 ? (
+            <p data-testid="empty-message">No properties found. Create some via the API!</p>
+          ) : (
+            properties.map((property) => (
+              <PropertyCard
+                key={property.id}
+                property={property}
+                onClick={handleSidebarPropertyClick}
+              />
+            ))
+          )}
+        </div>
       </div>
 
       {/* Map */}
@@ -149,6 +256,19 @@ export default function Home() {
           geoJsonOverlay={networkOverlay}
         />
       </div>
+
+      {/* Draggable Property Detail Panel */}
+      {selectedProperty && (
+        <DraggablePanel
+          title={selectedProperty.name}
+          onClose={handleBackClick}
+          storageKey="propertyDetail"
+        >
+          <div data-testid="selected-property">
+            <PropertyCard property={selectedProperty} />
+          </div>
+        </DraggablePanel>
+      )}
     </div>
   )
 }

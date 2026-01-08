@@ -127,12 +127,13 @@ test.describe('Home Page - Sidebar Interactions', () => {
     // Note: Clicking sidebar card uses already-loaded data, no additional API call
     await page.getByTestId('property-card').first().click()
 
-    // Should show selected property view with back button
+    // Should show selected property in draggable panel
+    await expect(page.getByTestId('draggable-panel')).toBeVisible()
     await expect(page.getByTestId('selected-property')).toBeVisible()
-    await expect(page.getByTestId('back-button')).toBeVisible()
+    await expect(page.getByTestId('panel-close-button')).toBeVisible()
   })
 
-  test('back button returns to property list', async ({ page }) => {
+  test('close button closes property panel', async ({ page }) => {
     // Set up response listener BEFORE navigating
     const responsePromise = page.waitForResponse((response) =>
       response.url().includes('/api/properties') && !response.url().match(/\/api\/properties\/\d+/)
@@ -144,15 +145,15 @@ test.describe('Home Page - Sidebar Interactions', () => {
     // Click first property card
     await page.getByTestId('property-card').first().click()
 
-    // Wait for detail view
-    await expect(page.getByTestId('selected-property')).toBeVisible()
+    // Wait for detail panel
+    await expect(page.getByTestId('draggable-panel')).toBeVisible()
 
-    // Click back button
-    await page.getByTestId('back-button').click()
+    // Click close button
+    await page.getByTestId('panel-close-button').click()
 
-    // Should return to list view
+    // Panel should close but list remains visible (now always visible)
     await expect(page.getByTestId('property-list')).toBeVisible()
-    await expect(page.getByTestId('selected-property')).not.toBeVisible()
+    await expect(page.getByTestId('draggable-panel')).not.toBeVisible()
   })
 
   test('selected property shows property name and details', async ({ page }) => {
@@ -478,6 +479,271 @@ test.describe('Home Page - pgRouting Network Overlay', () => {
   })
 })
 
+test.describe('Home Page - Layer Controls', () => {
+  test('layer controls panel is visible', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.getByTestId('layer-controls')).toBeVisible()
+  })
+
+  test('layer groups are displayed', async ({ page }) => {
+    await page.goto('/')
+
+    // Should show both layer groups
+    await expect(page.getByTestId('layer-group-base-layers')).toBeVisible()
+    await expect(page.getByTestId('layer-group-analysis')).toBeVisible()
+  })
+
+  test('clicking group header toggles expand/collapse', async ({ page }) => {
+    await page.goto('/')
+
+    // Base Layers group starts expanded, should show Properties toggle
+    await expect(page.getByTestId('layer-toggle-properties')).toBeVisible()
+
+    // Click to collapse
+    await page.getByTestId('layer-group-base-layers').click()
+
+    // Properties toggle should now be hidden
+    await expect(page.getByTestId('layer-toggle-properties')).not.toBeVisible()
+
+    // Click again to expand
+    await page.getByTestId('layer-group-base-layers').click()
+
+    // Properties toggle should be visible again
+    await expect(page.getByTestId('layer-toggle-properties')).toBeVisible()
+  })
+
+  test('Analysis group starts collapsed', async ({ page }) => {
+    await page.goto('/')
+
+    // Analysis group starts collapsed, network toggle should not be visible
+    await expect(page.getByTestId('layer-group-analysis')).toBeVisible()
+    await expect(page.getByTestId('layer-toggle-network')).not.toBeVisible()
+
+    // Expand it
+    await page.getByTestId('layer-group-analysis').click()
+
+    // Now network toggle should be visible
+    await expect(page.getByTestId('layer-toggle-network')).toBeVisible()
+  })
+
+  test('layer visibility checkbox can be toggled', async ({ page }) => {
+    await page.goto('/')
+
+    // Properties checkbox should be checked by default
+    const propertiesCheckbox = page.getByTestId('layer-toggle-properties').locator('input[type="checkbox"]')
+    await expect(propertiesCheckbox).toBeChecked()
+
+    // Uncheck it
+    await propertiesCheckbox.click()
+    await expect(propertiesCheckbox).not.toBeChecked()
+
+    // Check it again
+    await propertiesCheckbox.click()
+    await expect(propertiesCheckbox).toBeChecked()
+  })
+})
+
+test.describe('Home Page - Layer Presets', () => {
+  test('preset buttons are displayed', async ({ page }) => {
+    await page.goto('/')
+
+    await expect(page.getByTestId('layer-presets')).toBeVisible()
+    await expect(page.getByTestId('preset-default')).toBeVisible()
+    await expect(page.getByTestId('preset-network-view')).toBeVisible()
+    await expect(page.getByTestId('preset-risk-view')).toBeVisible()
+  })
+
+  test('clicking Network preset enables network layer', async ({ page }) => {
+    await page.goto('/')
+
+    // Expand Analysis group first to see the network checkbox
+    await page.getByTestId('layer-group-analysis').click()
+
+    // Network should start unchecked
+    const networkCheckbox = page.getByTestId('layer-toggle-network').locator('input[type="checkbox"]')
+    await expect(networkCheckbox).not.toBeChecked()
+
+    // Click Network preset
+    await page.getByTestId('preset-network-view').click()
+
+    // Network should now be checked
+    await expect(networkCheckbox).toBeChecked()
+  })
+
+  test('clicking Default preset resets to default layers', async ({ page }) => {
+    await page.goto('/')
+
+    // Expand Analysis group
+    await page.getByTestId('layer-group-analysis').click()
+
+    // Enable network via preset
+    await page.getByTestId('preset-network-view').click()
+    const networkCheckbox = page.getByTestId('layer-toggle-network').locator('input[type="checkbox"]')
+    await expect(networkCheckbox).toBeChecked()
+
+    // Click Default preset
+    await page.getByTestId('preset-default').click()
+
+    // Network should be unchecked again
+    await expect(networkCheckbox).not.toBeChecked()
+
+    // Properties should still be checked
+    const propertiesCheckbox = page.getByTestId('layer-toggle-properties').locator('input[type="checkbox"]')
+    await expect(propertiesCheckbox).toBeChecked()
+  })
+
+  test('active preset is visually highlighted', async ({ page }) => {
+    await page.goto('/')
+
+    // Click Network preset
+    await page.getByTestId('preset-network-view').click()
+
+    // Network preset button should have the active style (blue background)
+    const networkButton = page.getByTestId('preset-network-view')
+    await expect(networkButton).toHaveCSS('background-color', 'rgb(59, 130, 246)')
+
+    // Default preset should not have active style
+    const defaultButton = page.getByTestId('preset-default')
+    await expect(defaultButton).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  })
+
+  test('manual layer change clears active preset highlight', async ({ page }) => {
+    await page.goto('/')
+
+    // Click Network preset (should highlight it)
+    await page.getByTestId('preset-network-view').click()
+    await expect(page.getByTestId('preset-network-view')).toHaveCSS('background-color', 'rgb(59, 130, 246)')
+
+    // Manually toggle a layer
+    const propertiesCheckbox = page.getByTestId('layer-toggle-properties').locator('input[type="checkbox"]')
+    await propertiesCheckbox.click()
+
+    // Preset highlight should be cleared (no active preset)
+    await expect(page.getByTestId('preset-network-view')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  })
+})
+
+test.describe('Home Page - Legend', () => {
+  test('legend is displayed for visible layers', async ({ page }) => {
+    await page.goto('/')
+
+    // Properties layer is visible by default, should have a legend
+    await expect(page.getByTestId('legend')).toBeVisible()
+  })
+
+  test('legend shows layer name as title', async ({ page }) => {
+    await page.goto('/')
+
+    // Legend should show "Properties" as the layer name
+    const legend = page.getByTestId('legend')
+    await expect(legend).toContainText('Properties')
+  })
+})
+
+test.describe('Home Page - Draggable Panel', () => {
+  test('panel appears when property is selected', async ({ page }) => {
+    const responsePromise = page.waitForResponse((response) =>
+      response.url().includes('/api/properties') && !response.url().match(/\/api\/properties\/\d+/)
+    )
+
+    await page.goto('/')
+    await responsePromise
+
+    // No panel initially
+    await expect(page.getByTestId('draggable-panel')).not.toBeVisible()
+
+    // Click a property
+    await page.getByTestId('property-card').first().click()
+
+    // Panel should appear
+    await expect(page.getByTestId('draggable-panel')).toBeVisible()
+  })
+
+  test('panel shows property name in title', async ({ page }) => {
+    const responsePromise = page.waitForResponse((response) =>
+      response.url().includes('/api/properties') && !response.url().match(/\/api\/properties\/\d+/)
+    )
+
+    await page.goto('/')
+    await responsePromise
+
+    // Get property name before clicking
+    const propertyName = await page.getByTestId('property-card').first().locator('h3').textContent()
+
+    // Click property
+    await page.getByTestId('property-card').first().click()
+
+    // Panel title (in drag handle) should contain property name
+    const dragHandle = page.getByTestId('panel-drag-handle')
+    await expect(dragHandle).toContainText(propertyName!)
+  })
+
+  test('panel has close button that works', async ({ page }) => {
+    const responsePromise = page.waitForResponse((response) =>
+      response.url().includes('/api/properties') && !response.url().match(/\/api\/properties\/\d+/)
+    )
+
+    await page.goto('/')
+    await responsePromise
+
+    // Open panel
+    await page.getByTestId('property-card').first().click()
+    await expect(page.getByTestId('draggable-panel')).toBeVisible()
+
+    // Close button should be visible
+    await expect(page.getByTestId('panel-close-button')).toBeVisible()
+
+    // Click close
+    await page.getByTestId('panel-close-button').click()
+
+    // Panel should be gone
+    await expect(page.getByTestId('draggable-panel')).not.toBeVisible()
+  })
+
+  test('selecting different property updates panel content', async ({ page }) => {
+    const responsePromise = page.waitForResponse((response) =>
+      response.url().includes('/api/properties') && !response.url().match(/\/api\/properties\/\d+/)
+    )
+
+    await page.goto('/')
+    await responsePromise
+
+    const cards = page.getByTestId('property-card')
+    const cardCount = await cards.count()
+
+    if (cardCount >= 2) {
+      // Get names of first two properties
+      const firstName = await cards.nth(0).locator('h3').textContent()
+      const secondName = await cards.nth(1).locator('h3').textContent()
+
+      // Click first property
+      await cards.nth(0).click()
+      await expect(page.getByTestId('panel-drag-handle')).toContainText(firstName!)
+
+      // Click second property (panel should update, not close and reopen)
+      await cards.nth(1).click()
+      await expect(page.getByTestId('panel-drag-handle')).toContainText(secondName!)
+    }
+  })
+
+  test('property list remains visible while panel is open', async ({ page }) => {
+    const responsePromise = page.waitForResponse((response) =>
+      response.url().includes('/api/properties') && !response.url().match(/\/api\/properties\/\d+/)
+    )
+
+    await page.goto('/')
+    await responsePromise
+
+    // Open panel
+    await page.getByTestId('property-card').first().click()
+
+    // Both panel AND list should be visible
+    await expect(page.getByTestId('draggable-panel')).toBeVisible()
+    await expect(page.getByTestId('property-list')).toBeVisible()
+    await expect(page.getByTestId('property-card').first()).toBeVisible()
+  })
+})
+
 test.describe('Home Page - Full User Flow', () => {
   test('complete flow: load -> view list -> select property -> view details -> go back', async ({ page }) => {
     // Set up response listener BEFORE navigating
@@ -505,14 +771,16 @@ test.describe('Home Page - Full User Flow', () => {
     const firstPropertyName = await cards.first().locator('h3').textContent()
     await cards.first().click()
 
-    // 6. Verify detail view shows
+    // 6. Verify detail panel shows
+    await expect(page.getByTestId('draggable-panel')).toBeVisible()
     await expect(page.getByTestId('selected-property')).toBeVisible()
     await expect(page.getByTestId('selected-property')).toContainText(firstPropertyName!)
 
-    // 7. Click back button
-    await page.getByTestId('back-button').click()
+    // 7. Click close button on panel
+    await page.getByTestId('panel-close-button').click()
 
-    // 8. Verify return to list
+    // 8. Verify panel closes (list is always visible now)
+    await expect(page.getByTestId('draggable-panel')).not.toBeVisible()
     await expect(page.getByTestId('property-list')).toBeVisible()
     await expect(page.getByTestId('property-card').first()).toBeVisible()
   })

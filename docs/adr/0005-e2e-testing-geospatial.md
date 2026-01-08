@@ -91,6 +91,8 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://nginx:80'
 ```
 
 ### Test Coverage Achieved
-- 14 E2E tests covering structure, data loading, tile requests, sidebar interactions, and full user flows
+- 36 E2E tests covering structure, data loading, tile requests, sidebar interactions, layer controls, presets, legends, draggable panels, and full user flows
 - Verifies MVT tiles are requested with proper z/x/y coordinates
 - Verifies property list loads and sidebar interactions work
+- Tests layer group expand/collapse and preset switching
+- Tests draggable panel interactions and state persistence

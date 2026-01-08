@@ -26,6 +26,7 @@ services:
     volumes:
       - ./martin/config.yaml:/config.yaml:ro
     command: --config /config.yaml
+    restart: on-failure:3
     # Martin distroless image has no shell utilities, so we skip health check
     # and rely on restart policy and nginx upstream health instead
 

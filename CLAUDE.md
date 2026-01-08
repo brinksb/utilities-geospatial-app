@@ -71,9 +71,9 @@ docker compose down -v && ./deploy.sh
 
 | Layer | Tests | Framework |
 |-------|-------|-----------|
-| Backend | 52 | pytest |
-| Frontend unit | 42 | Vitest |
-| E2E | 19 | Playwright |
-| **Total** | **113** | |
+| Backend | 58 | pytest |
+| Frontend unit | 80 | Vitest |
+| E2E | 36 | Playwright |
+| **Total** | **174** | |
 
 Run all tests: `./test.sh`

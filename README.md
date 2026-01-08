@@ -1,6 +1,17 @@
-# Property Viewer - TDD Full-Stack Demo
+# Geospatial Starter Template
 
-A property/asset viewer demonstrating Test-Driven Development across a full stack.
+A production-ready scaffolding project for building geospatial applications with graph/network analysis capabilities. Use this as a seed for utility asset management, infrastructure mapping, or any spatial data visualization project.
+
+## Purpose
+
+This template provides:
+- **Pre-configured stack** for geospatial web apps (PostGIS, MVT tiles, React map)
+- **Graph analysis** via pgRouting for network traversal and connectivity
+- **TDD infrastructure** with 174 tests across backend, frontend, and E2E
+- **Feature flags** for trunk-based development
+- **Extensible patterns** for layers, legends, and UI components
+
+Fork this repo and replace the generic Property/Inspection domain model with your own entities.
 
 ## Stack
 
@@ -76,7 +87,20 @@ docker compose exec frontend npm run test:e2e
 - **MVT Tiles** - Static vector tiles via Martin for efficient map rendering
 - **pgRouting** - Network graph analysis (nearest edge, connected edges within N hops)
 - **Feature Flags** - JSON-based flags for trunk-based development (`config/features.json`)
-- **LayerManager** - Config-driven layer visibility with localStorage persistence
+- **LayerManager** - Config-driven layers with groups, presets, and localStorage persistence
+- **Legend Service** - Auto-generated legends from layer style configuration
+- **Draggable Panels** - Floating UI panels with position persistence
+- **RAG Risk Scoring** - Optional risk bands (feature-flagged, disabled by default)
+
+## Customization Guide
+
+To adapt this template for your project:
+
+1. **Domain Model**: Replace `Property`, `PropertyType`, `Inspection` in `backend/app/models.py`
+2. **Migrations**: Modify `db/migrations/` for your schema
+3. **MVT Function**: Update `005_mvt_functions.sql` to return your entity attributes
+4. **Layers**: Configure `frontend/src/config/layers.json` with your layer definitions
+5. **Feature Flags**: Add flags in `config/features.json` for gradual rollouts
 
 ## Development Workflow
 

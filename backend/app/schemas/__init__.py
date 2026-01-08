@@ -37,6 +37,9 @@ class PropertyListSchema(BaseModel):
     value: Optional[Decimal] = None
     longitude: Optional[float] = None
     latitude: Optional[float] = None
+    # Risk scoring (optional, feature-flagged)
+    risk_score: Optional[Decimal] = None
+    risk_band: Optional[str] = None
 
 
 class PropertyDetailSchema(BaseModel):
@@ -52,6 +55,9 @@ class PropertyDetailSchema(BaseModel):
     longitude: Optional[float] = None
     latitude: Optional[float] = None
     inspections: list[InspectionSchema] = []
+    # Risk scoring (optional, feature-flagged)
+    risk_score: Optional[Decimal] = None
+    risk_band: Optional[str] = None
 
 
 class PropertyCreateSchema(BaseModel):

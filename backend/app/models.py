@@ -25,6 +25,9 @@ class Property(Base):
     property_type_id = Column(Integer, ForeignKey("property_types.id"), nullable=False)
     value = Column(Numeric(15, 2))
     geometry = Column(Geometry("POINT", srid=4326), nullable=False)
+    # Risk scoring (feature-flagged)
+    risk_score = Column(Numeric(5, 2))
+    risk_band = Column(String(20))
 
     property_type = relationship("PropertyType", back_populates="properties")
     inspections = relationship("Inspection", back_populates="property", cascade="all, delete-orphan")

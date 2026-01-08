@@ -11,6 +11,10 @@
     "DARK_MODE": {
       "enabled": false,
       "description": "Enable dark mode theme toggle"
+    },
+    "RISK_SCORING": {
+      "enabled": false,
+      "description": "Show RAG risk scoring for properties"
     }
   }
 }

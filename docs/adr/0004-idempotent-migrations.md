@@ -17,7 +17,7 @@ Options considered:
 ## Decision
 We chose **raw SQL migrations with idempotent patterns** because:
 
-1. Simpler for a demo project
+1. Simpler for a starter template
 2. Teaches PostgreSQL idioms directly
 3. Files run automatically via `docker-entrypoint-initdb.d`
 
@@ -61,11 +61,13 @@ db/migrations/
 ├── 003_properties.sql      # Main entity with geometry
 ├── 004_inspections.sql     # Related records
 ├── 005_mvt_functions.sql   # Martin tile function
-└── 006_seed_data.sql       # Sample data
+├── 006_seed_data.sql       # Sample data
+├── 007_pgrouting.sql       # pgRouting extension and network edges
+└── 008_risk_scoring.sql    # Risk score columns (feature-flagged)
 ```
 
 ### Trade-offs
-- No down migrations (acceptable for demo)
+- No down migrations (acceptable for starter template)
 - No automatic schema diffing
 - Manual tracking of what's applied
 - Works well for additive changes, harder for destructive ones

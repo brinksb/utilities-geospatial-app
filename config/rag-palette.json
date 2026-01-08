@@ -1,0 +1,24 @@
+{
+  "bands": {
+    "very_high": {
+      "color": "#DC2626",
+      "label": "Very High Risk",
+      "minScore": 75
+    },
+    "high": {
+      "color": "#F97316",
+      "label": "High Risk",
+      "minScore": 50
+    },
+    "medium": {
+      "color": "#FBBF24",
+      "label": "Medium Risk",
+      "minScore": 25
+    },
+    "low": {
+      "color": "#22C55E",
+      "label": "Low Risk",
+      "minScore": 0
+    }
+  }
+}
