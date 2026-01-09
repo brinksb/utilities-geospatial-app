@@ -1,131 +1,150 @@
-# Geospatial Starter Template
+# Springfield Utilities
 
-A production-ready scaffolding project for building geospatial applications with graph/network analysis capabilities. Use this as a seed for utility asset management, infrastructure mapping, or any spatial data visualization project.
+*"Mmm... infrastructure"* - Homer Simpson
 
-## Purpose
+A geospatial starter template featuring synthetic utility network visualization for Springfield, Oregon (yes, *that* Springfield). Built with PostGIS, pgRouting, and a Simpsons-themed UI complete with rotating quotes and Mr. Burns safety disclaimers.
 
-This template provides:
-- **Pre-configured stack** for geospatial web apps (PostGIS, MVT tiles, React map)
-- **Graph analysis** via pgRouting for network traversal and connectivity
-- **TDD infrastructure** with 174 tests across backend, frontend, and E2E
-- **Feature flags** for trunk-based development
-- **Extensible patterns** for layers, legends, and UI components
+![Springfield Utilities Screenshot](docs/screenshot.png)
 
-Fork this repo and replace the generic Property/Inspection domain model with your own entities.
+## What's Inside
+
+| Dataset | Count | Source |
+|---------|-------|--------|
+| Buildings | ~19,759 | OpenStreetMap (Simpsons yellow) |
+| Utility Pipes | ~1,314 | Synthesized from OSM roads |
+| Service Lines | ~17,056 | KNN connections to buildings |
+| Graph Edges | ~1,317 | pgRouting topology |
+
+**Demo features:**
+- Click any building to trace connected utility network (pgRouting graph traversal)
+- Toggle layers: buildings, main pipes (blue), secondary pipes (green), service lines
+- Layer presets: Default, Network View, Infrastructure Only
+- Rotating Simpsons quotes in the header
+
+## Quick Start
+
+```bash
+./deploy.sh    # Start all services
+./test.sh      # Run 184 tests
+```
+
+Open http://localhost:8080 - you'll see Springfield, Oregon with the utility network overlay.
 
 ## Stack
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
-| Database | PostgreSQL + PostGIS | Spatial data storage |
-| MVT Server | Martin | Vector tile serving |
-| Backend | FastAPI | REST API |
-| Frontend | Next.js | React UI with MapLibre |
+| Database | PostgreSQL 16 + PostGIS 3.5 + pgRouting 3.6 | Spatial data & graph analysis |
+| Tile Server | Martin | MVT vector tiles |
+| Backend | FastAPI | REST API & graph queries |
+| Frontend | Next.js 14 + Deck.gl | React UI with WebGL map |
 | Proxy | nginx | Routing & caching |
-
-## Quick Start
-
-```bash
-./deploy.sh    # Start all services (idempotent)
-./test.sh      # Run all tests
-```
-
-Stack available at http://localhost:8080
 
 ## Project Structure
 
 ```
-├── deploy.sh / test.sh     # Entry scripts
-├── docker-compose.yml      # Service orchestration
-├── nginx/                  # Reverse proxy config
-├── martin/                 # MVT tile server config
-├── backend/                # FastAPI application
-│   ├── app/               # Application code
-│   └── tests/             # pytest tests
+├── scripts/                # Synthetic data tooling
+│   ├── load-osm.sh        # Download OSM data for bbox
+│   └── generate-network.py # Synthesize utility network
+├── config/
+│   └── synth-params.yaml  # Demo area configuration
+├── backend/               # FastAPI application
 ├── frontend/              # Next.js application
-│   ├── src/               # Application code
-│   ├── __tests__/         # Vitest component tests
-│   └── e2e/               # Playwright E2E tests
-└── db/migrations/         # SQL migrations (run on container init)
+├── db/migrations/         # SQL migrations (idempotent)
+└── docker-compose.yml
 ```
 
-## Endpoints
+## Synthetic Data Pipeline
 
-| Path | Service | Description |
-|------|---------|-------------|
-| `/` | frontend | Next.js UI |
-| `/api/*` | backend | FastAPI (docs at `/api/docs`) |
-| `/tiles/*` | martin | Vector tiles (catalog at `/tiles/catalog`) |
+The demo data is generated from OpenStreetMap:
 
-## Testing Strategy
-
-This project demonstrates TDD across all layers:
-
-### Backend (pytest)
 ```bash
-docker compose exec backend pytest -v
+# 1. Load OSM buildings and roads
+./scripts/load-osm.sh
+
+# 2. Generate synthetic utility network
+python scripts/generate-network.py
+
+# 3. Restart services
+./deploy.sh --fast
 ```
 
-### Frontend Components (Vitest + React Testing Library)
+Configuration in `config/synth-params.yaml`:
+- Bounding box for demo area
+- Road class → pipe type mappings
+- Materials, diameters, install year ranges
+- Service line max distance
+
+## API Endpoints
+
+| Path | Description |
+|------|-------------|
+| `/` | Springfield Utilities UI |
+| `/api/docs` | FastAPI OpenAPI docs |
+| `/api/graph/nearest_edge?lon=&lat=` | Find nearest pipe to point |
+| `/api/graph/nearby_edges/{id}?hops=` | Get connected edges within N hops |
+| `/tiles/osm_buildings_mvt/{z}/{x}/{y}` | Building footprints |
+| `/tiles/synth_pipes_mvt/{z}/{x}/{y}` | Utility pipes |
+| `/tiles/synth_services_mvt/{z}/{x}/{y}` | Service connections |
+
+## Testing
+
+184 tests across all layers:
+
 ```bash
-docker compose exec frontend npm run test
+./test.sh              # Run all tests
+./test.sh backend      # pytest (79 tests)
+./test.sh frontend     # Vitest (80 tests)
+./test.sh e2e          # Playwright (25 tests)
 ```
 
-### E2E (Playwright)
-```bash
-docker compose exec frontend npm run test:e2e
-```
+## Using as a Template
+
+To adapt for your own project:
+
+1. **Change demo area** - Edit `config/synth-params.yaml` with your bbox
+2. **Regenerate data** - Run `./scripts/load-osm.sh` and `generate-network.py`
+3. **Update view** - Change initial coordinates in `PropertyMap.tsx`
+4. **Customize layers** - Edit `frontend/src/config/layers.json`
+5. **Remove the whimsy** - Or don't, Mr. Burns approves either way
 
 ## Domain Model
 
-- **PropertyType** - Categories (residential, commercial, etc.)
-- **Property** - Assets with geometry, linked to a type
-- **Inspection** - Related inspection records
+The synthetic network uses these tables:
 
-## Features
+| Schema | Table | Description |
+|--------|-------|-------------|
+| `osm` | `buildings` | OSM building footprints |
+| `osm` | `roads` | OSM road geometries |
+| `synth` | `pipes` | Utility pipes (from roads) |
+| `synth` | `services` | Building-to-pipe connections |
+| `synth` | `graph_edges` | pgRouting topology |
+| `synth` | `graph_nodes` | Network vertices |
 
-- **MVT Tiles** - Static vector tiles via Martin for efficient map rendering
-- **pgRouting** - Network graph analysis (nearest edge, connected edges within N hops)
-- **Feature Flags** - JSON-based flags for trunk-based development (`config/features.json`)
-- **LayerManager** - Config-driven layers with groups, presets, and localStorage persistence
-- **Legend Service** - Auto-generated legends from layer style configuration
-- **Draggable Panels** - Floating UI panels with position persistence
-- **RAG Risk Scoring** - Optional risk bands (feature-flagged, disabled by default)
-
-## Customization Guide
-
-To adapt this template for your project:
-
-1. **Domain Model**: Replace `Property`, `PropertyType`, `Inspection` in `backend/app/models.py`
-2. **Migrations**: Modify `db/migrations/` for your schema
-3. **MVT Function**: Update `005_mvt_functions.sql` to return your entity attributes
-4. **Layers**: Configure `frontend/src/config/layers.json` with your layer definitions
-5. **Feature Flags**: Add flags in `config/features.json` for gradual rollouts
-
-## Development Workflow
-
-1. Write a failing test
-2. Write minimal code to pass
-3. Refactor
-4. Repeat
-
-All services hot-reload in development mode.
+Legacy tables (`properties`, `property_types`, `inspections`) exist for backwards compatibility but aren't used in the UI.
 
 ## Useful Commands
 
 ```bash
-# View logs
-docker compose logs -f [service]
-
-# Rebuild a service
-docker compose up -d --build [service]
-
-# Access database
+# Database access
 docker compose exec postgres psql -U app -d app
 
-# Stop everything
-docker compose down
+# View Martin tile catalog
+curl http://localhost:8080/tiles/catalog
 
-# Reset database (delete volume)
-docker compose down -v
+# Rebuild single service
+docker compose up -d --build frontend
+
+# Reset everything
+docker compose down -v && ./deploy.sh
 ```
+
+## Documentation
+
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Feature Flags](docs/FEATURE_FLAGS.md)
+- [Architecture Decision Records](docs/adr/)
+
+---
+
+*Safety codes not actually verified. Mr. Burns declined comment.*
