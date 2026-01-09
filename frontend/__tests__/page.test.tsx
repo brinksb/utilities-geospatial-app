@@ -18,7 +18,7 @@ import Home from '@/app/page'
 describe('Home Page', () => {
   it('renders the heading', () => {
     render(<Home />)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Property Viewer')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('SPRINGFIELD')
   })
 
   it('renders the map container', () => {

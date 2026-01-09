@@ -1,0 +1,59 @@
+# Synthetic Data Generation Parameters
+# Edit this file to change the demo area or network attributes
+
+area:
+  name: springfield
+  # Springfield, Oregon - Matt Groening's inspiration for The Simpsons
+  # Bounding box: [west, south, east, north]
+  bbox: [-123.05, 44.03, -122.95, 44.08]
+  # Oregon North State Plane (meters)
+  srid: 2994
+  # Center point for map view
+  center: [-123.0, 44.055]
+  zoom: 14
+
+network:
+  # OSM highway classes to use as high-capacity infrastructure
+  mains_classes:
+    - trunk
+    - trunk_link
+    - primary
+    - primary_link
+    - secondary
+    - secondary_link
+
+  # OSM highway classes to use as distribution network
+  secondary_classes:
+    - tertiary
+    - tertiary_link
+    - residential
+    - unclassified
+    - living_street
+
+  # Main pipe/line attributes
+  mains:
+    diameters: [300, 400, 500]  # mm
+    materials:
+      Steel: 0.4
+      PE: 0.6
+    install_years: [1970, 2010]
+    pressure_class: HP
+
+  # Secondary pipe/line attributes
+  secondary:
+    diameters: [100, 150, 200]  # mm
+    materials:
+      PE: 0.8
+      PVC: 0.2
+    install_years: [1990, 2023]
+    pressure_class: MP
+
+service:
+  # Maximum distance (meters) from building to pipe for service connection
+  max_distance_m: 50
+
+graph:
+  # Tile size for graph noding (meters)
+  tile_size_m: 2000
+  # Snapping tolerance (meters)
+  snap_tolerance_m: 1.0

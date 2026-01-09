@@ -1,8 +1,8 @@
 {
   "presets": [
-    { "id": "default", "name": "Default", "layers": ["properties"] },
-    { "id": "network-view", "name": "Network", "layers": ["properties", "network"] },
-    { "id": "risk-view", "name": "Risk", "layers": ["properties"], "colorBy": "risk_band" }
+    { "id": "default", "name": "Default", "layers": ["buildings", "pipes"] },
+    { "id": "network-view", "name": "Network", "layers": ["buildings", "pipes", "services"] },
+    { "id": "infrastructure", "name": "Infrastructure Only", "layers": ["pipes"] }
   ],
   "layers": [
     {
@@ -14,21 +14,63 @@
       "style": {},
       "children": [
         {
-          "id": "properties",
-          "name": "Properties",
+          "id": "buildings",
+          "name": "Buildings",
           "type": "mvt",
-          "url": "/tiles/properties_mvt/{z}/{x}/{y}",
+          "url": "/tiles/osm_buildings_mvt/{z}/{x}/{y}",
           "visible": true,
           "style": {
-            "fillColor": "#3B82F6",
-            "lineColor": "#ffffff",
-            "lineWidth": 2,
-            "radius": 8,
-            "opacity": 200
+            "fillColor": "#FED90F",
+            "lineColor": "#D4A900",
+            "lineWidth": 1,
+            "opacity": 180
           },
           "pickable": true,
           "autoHighlight": true,
-          "highlightColor": "#FFC800"
+          "highlightColor": "#FF6B35"
+        }
+      ]
+    },
+    {
+      "id": "infrastructure",
+      "name": "Infrastructure",
+      "type": "group",
+      "visible": true,
+      "expanded": true,
+      "style": {},
+      "children": [
+        {
+          "id": "pipes",
+          "name": "Utility Network",
+          "type": "mvt",
+          "url": "/tiles/synth_pipes_mvt/{z}/{x}/{y}",
+          "visible": true,
+          "style": {
+            "lineColor": "#0078D4",
+            "lineWidth": 3,
+            "opacity": 220
+          },
+          "pickable": true,
+          "categorical": {
+            "property": "class",
+            "colors": {
+              "main": "#0078D4",
+              "secondary": "#00A86B"
+            }
+          }
+        },
+        {
+          "id": "services",
+          "name": "Service Lines",
+          "type": "mvt",
+          "url": "/tiles/synth_services_mvt/{z}/{x}/{y}",
+          "visible": false,
+          "style": {
+            "lineColor": "#888888",
+            "lineWidth": 1,
+            "opacity": 150
+          },
+          "pickable": false
         }
       ]
     },
@@ -42,7 +84,7 @@
       "children": [
         {
           "id": "network",
-          "name": "Network Edges",
+          "name": "Graph Overlay",
           "type": "geojson",
           "visible": false,
           "style": {

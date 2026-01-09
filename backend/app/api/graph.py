@@ -20,7 +20,7 @@ def get_graph_status(db: Session = Depends(get_db)):
     )
     pgrouting_available = result.scalar()
 
-    result = db.execute(text("SELECT COUNT(*) FROM network_edges"))
+    result = db.execute(text("SELECT COUNT(*) FROM synth.graph_edges"))
     edge_count = result.scalar()
 
     return {
@@ -70,7 +70,7 @@ def get_nearby_edges(
     """
     # First check if edge exists
     exists = db.execute(
-        text("SELECT EXISTS(SELECT 1 FROM network_edges WHERE id = :edge_id)"),
+        text("SELECT EXISTS(SELECT 1 FROM synth.graph_edges WHERE id = :edge_id)"),
         {"edge_id": edge_id},
     ).scalar()
 

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Property Viewer',
-  description: 'View and manage properties on an interactive map',
+  title: 'Springfield Utilities Dept. | Sector 7G',
+  description: 'Mmm... infrastructure. Synthetic utility network for Springfield, Oregon. Safety codes not verified.',
 }
 
 export default function RootLayout({

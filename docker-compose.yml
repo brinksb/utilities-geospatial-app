@@ -43,6 +43,7 @@ services:
     volumes:
       - ./backend:/app
       - ./config:/config:ro
+      - ./scripts:/scripts:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 5s
