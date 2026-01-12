@@ -55,5 +55,6 @@ service:
 graph:
   # Tile size for graph noding (meters)
   tile_size_m: 2000
-  # Snapping tolerance (meters)
-  snap_tolerance_m: 1.0
+  # Snapping tolerance for DBSCAN clustering (meters)
+  # Higher values create more intersections by merging nearby endpoints
+  snap_tolerance_m: 5.0

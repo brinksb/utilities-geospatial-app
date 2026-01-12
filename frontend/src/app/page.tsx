@@ -1,15 +1,28 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { PropertyMap } from '@/components/PropertyMap'
+import { PipeInspector } from '@/components/PipeInspector'
+import { StatsPanel } from '@/components/StatsPanel'
 import { LayerManager, LayerConfig, LayerPreset } from '@/services/LayerManager'
 import { LegendService } from '@/services/LegendService'
 import { Legend } from '@/components/Legend'
+import { showToast } from '@/utils/toast'
 import layersConfig from '@/config/layers.json'
-import type { FeatureCollection } from 'geojson'
+import type { FeatureCollection, Feature } from 'geojson'
+
+// Outage stats from the API
+interface OutageStats {
+  affected_building_count: number
+  affected_service_count: number
+  total_service_length_m: number
+}
 
 // LegendService doesn't use localStorage, safe to initialize at module level
 const legendService = new LegendService()
+
+// Simulation modes for Sector 7G
+type SimulationMode = 'explore' | 'outage' | 'spread'
 
 // Simpsons-style quotes that rotate
 const QUOTES = [
@@ -22,9 +35,19 @@ const QUOTES = [
 
 export default function Home() {
   const [networkOverlay, setNetworkOverlay] = useState<FeatureCollection | null>(null)
+  const [outageOverlay, setOutageOverlay] = useState<FeatureCollection | null>(null)
+  const [outageStats, setOutageStats] = useState<OutageStats | null>(null)
+  const [spreadOverlay, setSpreadOverlay] = useState<FeatureCollection | null>(null)
+  const [currentHop, setCurrentHop] = useState<number>(0)
+  const [maxHop, setMaxHop] = useState<number>(0)
+  const [simulationMode, setSimulationMode] = useState<SimulationMode>('explore')
+  const [selectedPipe, setSelectedPipe] = useState<any | null>(null)
+  const [statsCollapsed, setStatsCollapsed] = useState(false)
   const [, forceUpdate] = useState(0)
   const [isClient, setIsClient] = useState(false)
   const [quoteIndex, setQuoteIndex] = useState(0)
+  const [loadingWorstDay, setLoadingWorstDay] = useState(false)
+  const animationRef = useRef<NodeJS.Timeout | null>(null)
 
   // Initialize LayerManager only on client side to avoid hydration mismatch
   const layerManager = useMemo(() => {
@@ -54,11 +77,31 @@ export default function Home() {
     return unsubscribe
   }, [layerManager])
 
+  // Clear any running animation
+  const clearAnimation = useCallback(() => {
+    if (animationRef.current) {
+      clearInterval(animationRef.current)
+      animationRef.current = null
+    }
+  }, [])
+
+  // Clear all overlays
+  const clearOverlays = useCallback(() => {
+    clearAnimation()
+    setNetworkOverlay(null)
+    setOutageOverlay(null)
+    setOutageStats(null)
+    setSpreadOverlay(null)
+    setSelectedPipe(null)
+    setCurrentHop(0)
+    setMaxHop(0)
+  }, [clearAnimation])
+
   /**
-   * Fetch network overlay for given coordinates.
-   * Demo feature: shows nearby network edges when clicking on the map.
+   * Fetch network overlay for given coordinates (Explore mode).
    */
   const fetchNetworkOverlay = async (lon: number, lat: number) => {
+    clearOverlays()
     try {
       const nearestRes = await fetch(`/api/graph/nearest_edge?lon=${lon}&lat=${lat}`)
       if (nearestRes.ok) {
@@ -69,21 +112,153 @@ export default function Home() {
           if (networkRes.ok) {
             const network = await networkRes.json()
             setNetworkOverlay(network)
+            showToast.network(network.features?.length || 0)
             return
           }
         }
       }
+      showToast.error('No network found at this location')
     } catch (err) {
       console.error('Error fetching network overlay:', err)
+      showToast.error('Failed to trace network')
     }
-    setNetworkOverlay(null)
   }
 
   /**
-   * Handle feature click from map (building or network element).
+   * Fetch outage impact for an edge (Break mode).
+   * "Sector 7G Outage Simulator" - Shows affected buildings when Homer breaks a pipe.
+   */
+  const fetchOutageImpact = async (lon: number, lat: number) => {
+    clearOverlays()
+    try {
+      // First find the nearest edge
+      const nearestRes = await fetch(`/api/graph/nearest_edge?lon=${lon}&lat=${lat}`)
+      if (nearestRes.ok) {
+        const nearest = await nearestRes.json()
+        const edgeId = nearest.properties?.edge_id
+        if (edgeId) {
+          // Get affected buildings
+          const outageRes = await fetch(`/api/graph/outage/${edgeId}`)
+          if (outageRes.ok) {
+            const outage = await outageRes.json()
+            setOutageOverlay(outage)
+            // Store stats for display
+            if (outage.stats) {
+              setOutageStats(outage.stats)
+              showToast.outage(outage.stats.affected_building_count)
+            }
+            // Also show the broken pipe
+            setNetworkOverlay({
+              type: 'FeatureCollection',
+              features: [nearest]
+            })
+            return
+          }
+        }
+      }
+      showToast.error('No pipe found at this location')
+    } catch (err) {
+      console.error('Error fetching outage impact:', err)
+      showToast.error('Failed to simulate outage')
+    }
+  }
+
+  /**
+   * Fetch Homer's Worst Day - the single most critical pipe.
+   * One-click demo to show maximum outage impact.
+   */
+  const fetchWorstDay = async () => {
+    setLoadingWorstDay(true)
+    clearOverlays()
+    try {
+      const res = await fetch('/api/graph/worst_day')
+      if (res.ok) {
+        const data = await res.json()
+        setOutageOverlay(data)
+        if (data.stats) {
+          setOutageStats(data.stats)
+        }
+        // Show the worst pipe highlighted
+        if (data.worst_pipe?.geometry) {
+          setNetworkOverlay({
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              geometry: data.worst_pipe.geometry,
+              properties: { edge_id: data.worst_pipe.edge_id }
+            }]
+          })
+        }
+        // Show dramatic toast
+        if (data.dramatic_message) {
+          showToast.worstDay(data.stats?.affected_building_count || 0, data.dramatic_message)
+        }
+        // Switch to outage mode to show the stats panel
+        setSimulationMode('outage')
+      } else {
+        showToast.error('Failed to find worst day scenario')
+      }
+    } catch (err) {
+      console.error('Error fetching worst day:', err)
+      showToast.error('Failed to simulate worst day')
+    } finally {
+      setLoadingWorstDay(false)
+    }
+  }
+
+  /**
+   * Fetch spread simulation and animate it (Spread mode).
+   * "Nuclear Plant Blast Radius" - Animated contamination spread.
+   */
+  const fetchSpreadSimulation = async (lon: number, lat: number) => {
+    clearOverlays()
+    try {
+      const spreadRes = await fetch(`/api/graph/spread?lon=${lon}&lat=${lat}&max_hops=8`)
+      if (spreadRes.ok) {
+        const spread = await spreadRes.json()
+        setSpreadOverlay(spread)
+
+        // Find max hop for animation
+        const hops = spread.features.map((f: Feature) => f.properties?.hop || 0)
+        const maxHopValue = Math.max(...hops, 0)
+        setMaxHop(maxHopValue)
+        setCurrentHop(0)
+
+        showToast.spread(maxHopValue, spread.features?.length || 0)
+
+        // Animate through hops
+        let hop = 0
+        animationRef.current = setInterval(() => {
+          hop++
+          if (hop > maxHopValue) {
+            // Loop the animation
+            hop = 0
+          }
+          setCurrentHop(hop)
+        }, 400)
+      } else {
+        showToast.error('No network found at this location')
+      }
+    } catch (err) {
+      console.error('Error fetching spread simulation:', err)
+      showToast.error('Failed to simulate spread')
+    }
+  }
+
+  /**
+   * Handle feature click from map - behavior depends on simulation mode.
    */
   const handleMapFeatureClick = async (feature: any) => {
-    // Get coordinates from feature for network overlay
+    // Check if this is a pipe (has pipe-specific properties from MVT tile)
+    const props = feature.properties
+    if (simulationMode === 'explore' && props?.material && props?.diameter_mm) {
+      // This is a pipe feature - show the inspector
+      setSelectedPipe(props)
+      showToast.pipeSelected(props.id, props.class)
+      return
+    }
+
+    // Get coordinates from feature
     const coords = feature.geometry?.coordinates
     if (coords) {
       // Handle different geometry types
@@ -97,9 +272,25 @@ export default function Home() {
         // Point
         [lon, lat] = coords
       }
-      await fetchNetworkOverlay(lon, lat)
+
+      // Execute based on current mode
+      switch (simulationMode) {
+        case 'outage':
+          await fetchOutageImpact(lon, lat)
+          break
+        case 'spread':
+          await fetchSpreadSimulation(lon, lat)
+          break
+        default:
+          await fetchNetworkOverlay(lon, lat)
+      }
     }
   }
+
+  // Cleanup animation on unmount
+  useEffect(() => {
+    return () => clearAnimation()
+  }, [clearAnimation])
 
   // Simpsons sky gradient background for header
   const headerStyle: React.CSSProperties = {
@@ -278,6 +469,156 @@ export default function Home() {
               </div>
             )}
 
+            {/* Simulation Mode Selector */}
+            <div
+              data-testid="simulation-modes"
+              style={{
+                marginBottom: '12px',
+                paddingBottom: '12px',
+                borderBottom: '2px dashed #FED90F',
+              }}
+            >
+              <h3 style={{
+                margin: '0 0 8px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: '#666',
+              }}>
+                Simulation Mode
+              </h3>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  data-testid="mode-explore"
+                  onClick={() => { setSimulationMode('explore'); clearOverlays(); }}
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '4px',
+                    border: '2px solid #000',
+                    backgroundColor: simulationMode === 'explore' ? '#FED90F' : '#fff',
+                    color: '#000',
+                    cursor: 'pointer',
+                    boxShadow: simulationMode === 'explore' ? 'none' : '2px 2px 0 #000',
+                    transform: simulationMode === 'explore' ? 'translate(2px, 2px)' : 'none',
+                  }}
+                >
+                  🔍 Explore
+                </button>
+                <button
+                  data-testid="mode-outage"
+                  onClick={() => { setSimulationMode('outage'); clearOverlays(); }}
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '4px',
+                    border: '2px solid #000',
+                    backgroundColor: simulationMode === 'outage' ? '#FF6347' : '#fff',
+                    color: simulationMode === 'outage' ? '#fff' : '#000',
+                    cursor: 'pointer',
+                    boxShadow: simulationMode === 'outage' ? 'none' : '2px 2px 0 #000',
+                    transform: simulationMode === 'outage' ? 'translate(2px, 2px)' : 'none',
+                  }}
+                >
+                  💥 Break Pipe
+                </button>
+                <button
+                  data-testid="mode-spread"
+                  onClick={() => { setSimulationMode('spread'); clearOverlays(); }}
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '4px',
+                    border: '2px solid #000',
+                    backgroundColor: simulationMode === 'spread' ? '#32CD32' : '#fff',
+                    color: simulationMode === 'spread' ? '#fff' : '#000',
+                    cursor: 'pointer',
+                    boxShadow: simulationMode === 'spread' ? 'none' : '2px 2px 0 #000',
+                    transform: simulationMode === 'spread' ? 'translate(2px, 2px)' : 'none',
+                  }}
+                >
+                  ☢️ Spread
+                </button>
+              </div>
+              {simulationMode === 'outage' && (
+                <div style={{ marginTop: '8px' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: '10px', color: '#FF6347' }}>
+                    Click a pipe to simulate breaking it. Shows affected buildings.
+                  </p>
+                  {outageStats && (
+                    <div
+                      data-testid="outage-stats"
+                      style={{
+                        padding: '10px',
+                        backgroundColor: '#FFE4E1',
+                        borderRadius: '6px',
+                        border: '2px solid #FF6347',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#8B0000' }}>
+                        D'oh! Impact Summary:
+                      </div>
+                      <div style={{ display: 'grid', gap: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Buildings affected:</span>
+                          <strong>{outageStats.affected_building_count}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Service connections:</span>
+                          <strong>{outageStats.affected_service_count}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Service line length:</span>
+                          <strong>{outageStats.total_service_length_m.toFixed(0)}m</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {simulationMode === 'spread' && (
+                <p style={{ margin: '8px 0 0', fontSize: '10px', color: '#32CD32' }}>
+                  Click anywhere to start a spread animation through the network.
+                  {maxHop > 0 && ` Wave: ${currentHop}/${maxHop}`}
+                </p>
+              )}
+
+              {/* Homer's Worst Day Button */}
+              <button
+                data-testid="btn-worst-day"
+                onClick={fetchWorstDay}
+                disabled={loadingWorstDay}
+                style={{
+                  marginTop: '12px',
+                  padding: '10px 16px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  borderRadius: '6px',
+                  border: '3px solid #8B0000',
+                  backgroundColor: loadingWorstDay ? '#ccc' : '#FF6347',
+                  color: '#fff',
+                  cursor: loadingWorstDay ? 'wait' : 'pointer',
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '2px 2px 0 #8B0000',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <span>☢️</span>
+                {loadingWorstDay ? 'Finding...' : "Homer's Worst Day"}
+                <span>🍩</span>
+              </button>
+              <p style={{ margin: '4px 0 0', fontSize: '9px', color: '#999', textAlign: 'center' }}>
+                Find the single most catastrophic pipe to break
+              </p>
+            </div>
+
             <h2 style={{
               margin: '0 0 8px',
               fontSize: '14px',
@@ -394,6 +735,12 @@ export default function Home() {
               Watch the pipes light up like Homer's eyes at an all-you-can-eat buffet.
             </div>
           </div>
+
+          {/* Network Statistics Panel */}
+          <StatsPanel
+            collapsed={statsCollapsed}
+            onToggle={() => setStatsCollapsed(!statsCollapsed)}
+          />
         </div>
       </div>
 
@@ -403,8 +750,19 @@ export default function Home() {
           visibleLayers={layerManager.getVisibleLayers()}
           onPropertyClick={handleMapFeatureClick}
           geoJsonOverlay={networkOverlay}
+          outageOverlay={outageOverlay}
+          spreadOverlay={spreadOverlay}
+          currentHop={currentHop}
         />
       </div>
+
+      {/* Pipe Inspector Panel */}
+      {selectedPipe && (
+        <PipeInspector
+          pipe={selectedPipe}
+          onClose={() => setSelectedPipe(null)}
+        />
+      )}
     </div>
   )
 }

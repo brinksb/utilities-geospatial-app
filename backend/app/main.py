@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router as api_router
 from app.api.graph import router as graph_router
+from app.api.stats import router as stats_router
 
 app = FastAPI(
     title="Property Viewer API",
@@ -38,3 +39,4 @@ def root():
 # Include API routes
 app.include_router(api_router)
 app.include_router(graph_router)
+app.include_router(stats_router)

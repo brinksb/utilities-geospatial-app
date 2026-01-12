@@ -157,34 +157,102 @@ def generate_services(conn, config: dict):
 
 
 def build_graph(conn, config: dict):
-    """Build pgRouting graph from pipes."""
+    """Build pgRouting graph from pipes with DBSCAN clustering for better intersection merging.
+
+    Uses ST_ClusterDBSCAN to cluster nearby endpoints together, creating proper
+    intersections even when pipe endpoints don't exactly coincide.
+    """
     snap_tolerance = config["graph"]["snap_tolerance_m"]
-    print("Building pgRouting graph...")
+    # Convert meters to degrees (approximate at equator, good enough for clustering)
+    eps_degrees = snap_tolerance / 111000
+    print(f"Building pgRouting graph (snap tolerance: {snap_tolerance}m)...")
 
     with conn.cursor() as cur:
         # Clear existing graph
         cur.execute("TRUNCATE synth.graph_edges RESTART IDENTITY CASCADE")
         cur.execute("TRUNCATE synth.graph_nodes RESTART IDENTITY CASCADE")
 
-        # Create graph nodes from pipe endpoints (snapped)
+        # Use DBSCAN clustering to merge nearby endpoints into single nodes
+        # This creates proper intersections even when endpoints are slightly offset
         cur.execute(f"""
+            WITH endpoints AS (
+                -- Extract all pipe endpoints with their pipe references
+                SELECT 'start' AS endpoint_type, id AS pipe_id, ST_StartPoint(geom) AS pt FROM synth.pipes
+                UNION ALL
+                SELECT 'end', id, ST_EndPoint(geom) FROM synth.pipes
+            ),
+            clustered AS (
+                -- Cluster nearby points using DBSCAN
+                SELECT
+                    pipe_id,
+                    endpoint_type,
+                    pt,
+                    ST_ClusterDBSCAN(pt, eps := {eps_degrees}, minpoints := 1) OVER() AS cluster_id
+                FROM endpoints
+            ),
+            cluster_centroids AS (
+                -- Calculate centroid of each cluster to use as node location
+                SELECT
+                    cluster_id,
+                    ST_Centroid(ST_Collect(pt)) AS geom
+                FROM clustered
+                GROUP BY cluster_id
+            )
             INSERT INTO synth.graph_nodes (geom)
-            SELECT DISTINCT ST_SnapToGrid(pt, {snap_tolerance / 111000}) AS geom
-            FROM (
-                SELECT ST_StartPoint(geom) AS pt FROM synth.pipes
-                UNION
-                SELECT ST_EndPoint(geom) AS pt FROM synth.pipes
-            ) AS endpoints
+            SELECT geom FROM cluster_centroids
         """)
         node_count = cur.rowcount
-        print(f"  Created {node_count} graph nodes")
+        print(f"  Created {node_count} graph nodes (DBSCAN clustered)")
 
-        # Create graph edges with source/target references
+        # Create graph edges by joining pipes to their clustered nodes
         cur.execute(f"""
+            WITH endpoints AS (
+                SELECT 'start' AS endpoint_type, id AS pipe_id, ST_StartPoint(geom) AS pt FROM synth.pipes
+                UNION ALL
+                SELECT 'end', id, ST_EndPoint(geom) FROM synth.pipes
+            ),
+            clustered AS (
+                SELECT
+                    pipe_id,
+                    endpoint_type,
+                    pt,
+                    ST_ClusterDBSCAN(pt, eps := {eps_degrees}, minpoints := 1) OVER() AS cluster_id
+                FROM endpoints
+            ),
+            cluster_centroids AS (
+                SELECT
+                    cluster_id,
+                    ST_Centroid(ST_Collect(pt)) AS geom
+                FROM clustered
+                GROUP BY cluster_id
+            ),
+            pipe_endpoints AS (
+                -- Map each pipe's start/end to cluster centroids
+                SELECT
+                    c.pipe_id,
+                    c.endpoint_type,
+                    cc.geom AS node_geom
+                FROM clustered c
+                JOIN cluster_centroids cc ON cc.cluster_id = c.cluster_id
+            ),
+            pipe_nodes AS (
+                -- Get source and target node IDs for each pipe
+                SELECT
+                    pe.pipe_id,
+                    (SELECT n.id FROM synth.graph_nodes n
+                     WHERE ST_DWithin(n.geom, pe_start.node_geom, 0.000001)
+                     LIMIT 1) AS source_id,
+                    (SELECT n.id FROM synth.graph_nodes n
+                     WHERE ST_DWithin(n.geom, pe_end.node_geom, 0.000001)
+                     LIMIT 1) AS target_id
+                FROM (SELECT DISTINCT pipe_id FROM pipe_endpoints) pe
+                JOIN pipe_endpoints pe_start ON pe_start.pipe_id = pe.pipe_id AND pe_start.endpoint_type = 'start'
+                JOIN pipe_endpoints pe_end ON pe_end.pipe_id = pe.pipe_id AND pe_end.endpoint_type = 'end'
+            )
             INSERT INTO synth.graph_edges (source_id, target_id, pipe_id, class, diameter_mm, length_m, cost, reverse_cost, geom)
             SELECT
-                n1.id AS source_id,
-                n2.id AS target_id,
+                pn.source_id,
+                pn.target_id,
                 p.id AS pipe_id,
                 p.class,
                 p.diameter_mm,
@@ -193,13 +261,30 @@ def build_graph(conn, config: dict):
                 p.length_m AS reverse_cost,
                 p.geom
             FROM synth.pipes p
-            JOIN synth.graph_nodes n1
-                ON ST_DWithin(ST_StartPoint(p.geom), n1.geom, {snap_tolerance / 111000})
-            JOIN synth.graph_nodes n2
-                ON ST_DWithin(ST_EndPoint(p.geom), n2.geom, {snap_tolerance / 111000})
+            JOIN pipe_nodes pn ON pn.pipe_id = p.id
+            WHERE pn.source_id IS NOT NULL AND pn.target_id IS NOT NULL
         """)
         edge_count = cur.rowcount
         print(f"  Created {edge_count} graph edges")
+
+        # Report connectivity metrics
+        cur.execute("""
+            WITH node_degrees AS (
+                SELECT node_id, SUM(cnt) as degree FROM (
+                    SELECT source_id AS node_id, COUNT(*) AS cnt FROM synth.graph_edges GROUP BY source_id
+                    UNION ALL
+                    SELECT target_id, COUNT(*) FROM synth.graph_edges GROUP BY target_id
+                ) t GROUP BY node_id
+            )
+            SELECT
+                COUNT(*) AS total_nodes,
+                SUM(CASE WHEN degree = 1 THEN 1 ELSE 0 END) AS dead_ends,
+                SUM(CASE WHEN degree >= 3 THEN 1 ELSE 0 END) AS intersections
+            FROM node_degrees
+        """)
+        metrics = cur.fetchone()
+        dead_end_pct = round(100.0 * metrics[1] / metrics[0], 1) if metrics[0] > 0 else 0
+        print(f"  Connectivity: {dead_end_pct}% dead-ends, {metrics[2]} intersections")
 
         conn.commit()
         return node_count, edge_count

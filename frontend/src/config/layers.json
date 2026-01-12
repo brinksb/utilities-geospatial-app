@@ -1,8 +1,8 @@
 {
   "presets": [
-    { "id": "default", "name": "Default", "layers": ["buildings", "pipes"] },
+    { "id": "default", "name": "Default", "layers": ["buildings", "pipes", "services"] },
     { "id": "network-view", "name": "Network", "layers": ["buildings", "pipes", "services"] },
-    { "id": "infrastructure", "name": "Infrastructure Only", "layers": ["pipes"] }
+    { "id": "infrastructure", "name": "Infrastructure Only", "layers": ["pipes", "services"] }
   ],
   "layers": [
     {
@@ -67,8 +67,8 @@
           "visible": false,
           "style": {
             "lineColor": "#888888",
-            "lineWidth": 1,
-            "opacity": 150
+            "lineWidth": 1.5,
+            "opacity": 200
           },
           "pickable": false
         }
@@ -94,6 +94,29 @@
             "opacity": 255
           },
           "pickable": true
+        },
+        {
+          "id": "critical-pipes",
+          "name": "Critical Pipes",
+          "type": "mvt",
+          "url": "/tiles/synth_critical_pipes_mvt/{z}/{x}/{y}",
+          "visible": false,
+          "style": {
+            "lineColor": "#22C55E",
+            "lineWidth": 4,
+            "opacity": 230
+          },
+          "pickable": true,
+          "autoHighlight": true,
+          "highlightColor": "#FFFFFF",
+          "categorical": {
+            "property": "criticality",
+            "colors": {
+              "low": "#22C55E",
+              "medium": "#EAB308",
+              "high": "#EF4444"
+            }
+          }
         }
       ]
     }

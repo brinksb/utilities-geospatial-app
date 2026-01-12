@@ -128,7 +128,50 @@ BEGIN
 END;
 $$;
 
+-- MVT function for critical pipes layer (colored by criticality score)
+-- Shows pipes with affected_building_count from graph_edges
+CREATE OR REPLACE FUNCTION synth_critical_pipes_mvt(z integer, x integer, y integer)
+RETURNS bytea
+LANGUAGE plpgsql
+STABLE
+PARALLEL SAFE
+AS $$
+DECLARE
+    bounds geometry;
+    result bytea;
+BEGIN
+    -- Calculate tile bounds
+    bounds := ST_TileEnvelope(z, x, y);
+
+    -- Generate MVT with criticality data
+    SELECT ST_AsMVT(q, 'synth_critical_pipes_mvt', 4096, 'geom') INTO result
+    FROM (
+        SELECT
+            ge.id AS edge_id,
+            ge.pipe_id,
+            p.class,
+            p.diameter_mm,
+            p.material,
+            COALESCE(ge.affected_building_count, 0) AS affected_building_count,
+            synth.criticality_level(ge.affected_building_count) AS criticality,
+            ST_AsMVTGeom(
+                ST_Transform(ge.geom, 3857),
+                bounds,
+                4096,
+                256,
+                true
+            ) AS geom
+        FROM synth.graph_edges ge
+        JOIN synth.pipes p ON p.id = ge.pipe_id
+        WHERE ST_Intersects(ST_Transform(ge.geom, 3857), bounds)
+    ) q;
+
+    RETURN result;
+END;
+$$;
+
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION synth_pipes_mvt(integer, integer, integer) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION synth_services_mvt(integer, integer, integer) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION osm_buildings_mvt(integer, integer, integer) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION synth_critical_pipes_mvt(integer, integer, integer) TO PUBLIC;

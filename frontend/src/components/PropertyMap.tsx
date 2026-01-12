@@ -46,6 +46,9 @@ interface PropertyMapProps {
   initialViewState?: ViewState
   visibleLayers?: LayerConfig[]
   geoJsonOverlay?: FeatureCollection | null
+  outageOverlay?: FeatureCollection | null
+  spreadOverlay?: FeatureCollection | null
+  currentHop?: number
   onPropertyClick?: (feature: Feature) => void
 }
 
@@ -131,6 +134,9 @@ export function PropertyMap({
   },
   visibleLayers,
   geoJsonOverlay = null,
+  outageOverlay = null,
+  spreadOverlay = null,
+  currentHop = 0,
   onPropertyClick,
 }: PropertyMapProps) {
 
@@ -203,8 +209,62 @@ export function PropertyMap({
       )
     }
 
+    // Outage overlay - affected buildings in red
+    if (outageOverlay) {
+      result.push(
+        new GeoJsonLayer({
+          id: 'outage-overlay',
+          data: outageOverlay,
+          getFillColor: [255, 0, 0, 150], // Red fill
+          getLineColor: [200, 0, 0, 255], // Dark red outline
+          getLineWidth: 2,
+          lineWidthMinPixels: 1,
+          pickable: true,
+        })
+      )
+    }
+
+    // Spread overlay - animated contamination spread
+    if (spreadOverlay) {
+      // Filter features by current hop for animation effect
+      const visibleFeatures = spreadOverlay.features.filter(
+        (f) => (f.properties?.hop || 0) <= currentHop
+      )
+
+      result.push(
+        new GeoJsonLayer({
+          id: 'spread-overlay',
+          data: { ...spreadOverlay, features: visibleFeatures },
+          getFillColor: (f: Feature) => {
+            const hop = f.properties?.hop || 0
+            // Gradient from bright green (near) to yellow (far)
+            const ratio = Math.min(hop / 8, 1)
+            return [
+              Math.floor(50 + ratio * 205), // R: 50 -> 255
+              Math.floor(255 - ratio * 55),  // G: 255 -> 200
+              Math.floor(50 - ratio * 50),   // B: 50 -> 0
+              180,
+            ]
+          },
+          getLineColor: (f: Feature) => {
+            const hop = f.properties?.hop || 0
+            const ratio = Math.min(hop / 8, 1)
+            return [
+              Math.floor(50 + ratio * 205),
+              Math.floor(255 - ratio * 55),
+              Math.floor(50 - ratio * 50),
+              255,
+            ]
+          },
+          getLineWidth: 4,
+          lineWidthMinPixels: 2,
+          pickable: true,
+        })
+      )
+    }
+
     return result
-  }, [layerConfigs, geoJsonOverlay, onPropertyClick])
+  }, [layerConfigs, geoJsonOverlay, outageOverlay, spreadOverlay, currentHop, onPropertyClick])
 
   return (
     <Map

@@ -334,9 +334,9 @@ export class LayerManager {
 
     try {
       const expanded: Record<string, boolean> = {}
-      for (const [id, isExpanded] of this.groupExpanded.entries()) {
+      this.groupExpanded.forEach((isExpanded, id) => {
         expanded[id] = isExpanded
-      }
+      })
       localStorage.setItem(GROUP_EXPANDED_KEY, JSON.stringify(expanded))
     } catch {
       // Ignore localStorage errors
