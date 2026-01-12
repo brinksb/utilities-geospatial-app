@@ -106,7 +106,7 @@ To adapt for your own project:
 2. **Regenerate data** - Run `./scripts/load-osm.sh` and `generate-network.py`
 3. **Update view** - Change initial coordinates in `PropertyMap.tsx`
 4. **Customize layers** - Edit `frontend/src/config/layers.json`
-5. **Remove the whimsy** - Or don't, Mr. Burns approves either way
+5. **Remove the whimsy** - Or don't, Mr. Burns disapproves either way
 
 ## Domain Model
 
